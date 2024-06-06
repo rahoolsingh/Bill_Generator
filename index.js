@@ -1,11 +1,11 @@
 const sharp = require('sharp');
 const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
+const Jimp = require('jimp');
 
 // Define the image paths
 const inputImagePath = 'input.jpg';  // Input image path
 const outputImagePath = 'output.jpg'; // Output image path
-const overlayImagePath = 'overlay.png'; // Overlay image path
 
 // Define an array of text objects
 const texts = [
@@ -22,13 +22,18 @@ const texts = [
     { text: 'Lorem Ipsum India Is Great', size: 14, xCord: 150, yCord: 550, style: '600', font:"Arial" },
 ];
 
+const signatureImages = [
+    {path: 'signature.png', xCord: 60, yCord: 570},
+    {path: 'signature.png', xCord: 220, yCord: 570},
+    {path: 'signature.png', xCord: 390, yCord: 570}
+];
+
 const textColor = 'black';
 
-async function addTextAndOverlay(inputImagePath, overlayImagePath, outputImagePath, texts, textColor) {
+async function addTextAndOverlay(inputImagePath, signatureImages, outputImagePath, texts, textColor) {
     try {
         // Load the input image
         const inputImage = await loadImage(inputImagePath);
-        const overlayImage = await loadImage(overlayImagePath);
 
         // Create a canvas with the same dimensions as the input image
         const canvas = createCanvas(inputImage.width, inputImage.height);
@@ -42,13 +47,30 @@ async function addTextAndOverlay(inputImagePath, overlayImagePath, outputImagePa
 
         // Draw each text onto the canvas
         texts.forEach(({ text, size, xCord, yCord, style, font }) => {
-            console.log(font);
             ctx.font = `${style} ${size}px ${font}`;
             ctx.fillText(text, xCord, yCord);
         });
 
-        // Draw the overlay image onto the canvas
-        ctx.drawImage(overlayImage, inputImage.width - overlayImage.width, inputImage.height - overlayImage.height);
+        // Load and resize each overlay image using Jimp
+        const overlayPromises = signatureImages.map(async (signature) => {
+            // Load the overlay image using Jimp and resize it
+            const overlay = await Jimp.read(signature.path);
+            overlay.resize(110, 110);
+
+            // Convert the resized overlay image to a buffer
+            const overlayBuffer = await overlay.getBufferAsync(Jimp.MIME_PNG);
+
+            // Load the resized overlay image onto the canvas
+            const resizedOverlayImage = await loadImage(overlayBuffer);
+            ctx.drawImage(
+                resizedOverlayImage,
+                signature.xCord,
+                signature.yCord
+            );
+        });
+
+        // Await all the overlay promises to complete
+        await Promise.all(overlayPromises);
 
         // Convert the canvas to a buffer and use sharp to save it as an image
         const buffer = canvas.toBuffer('image/png');
@@ -61,4 +83,4 @@ async function addTextAndOverlay(inputImagePath, overlayImagePath, outputImagePa
 }
 
 // Run the function to add text and overlay
-addTextAndOverlay(inputImagePath, overlayImagePath, outputImagePath, texts, textColor);
+addTextAndOverlay(inputImagePath, signatureImages, outputImagePath, texts, textColor);
